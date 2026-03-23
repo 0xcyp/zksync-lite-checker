@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>zkSync Lite Token Checker</title>
+<meta name="description" content="Check your zkSync Lite token balances before the May 4 shutdown. Enter your address or ENS to view holdings.">
+<meta property="og:title" content="zkSync Lite Token Checker">
+<meta property="og:description" content="Check your zkSync Lite holdings before the May 4, 2026 shutdown.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface2: #0f0f0f;
+    --border: #1a1a1a; --border-light: rgba(255,255,255,0.04);
+    --text: #e8e8e8; --text-dim: #888; --text-muted: #555; --text-faint: #333;
+    --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --purple: #a78bfa;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    --sans: -apple-system, system-ui, 'Segoe UI', sans-serif;
+  }
+
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    min-height: 100dvh; display: flex; flex-direction: column;
+    align-items: center; padding: 48px 16px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* -- Header -- */
+  .header { text-align: center; margin-bottom: 40px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-bottom: 14px; padding: 6px 14px;
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.12);
+    border-radius: 100px;
+  }
+  .badge-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red); animation: pulse 2s ease infinite;
+  }
+  .badge-text {
+    font: 600 11px/1 var(--mono); color: var(--red);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.03em;
+    color: #fff; line-height: 1.2;
+  }
+  @media (min-width: 480px) { h1 { font-size: 32px; } }
+  .subtitle {
+    font: 400 14px/1.5 var(--sans); color: var(--text-muted);
+    margin-top: 8px; max-width: 340px; display: inline-block;
+  }
+
+  /* -- Search -- */
+  .search {
+    width: 100%; max-width: 520px; display: flex; gap: 8px; margin-bottom: 12px;
+  }
+  .search-input {
+    flex: 1; min-width: 0; padding: 14px 14px; background: var(--surface);
+    border: 1px solid #222; border-radius: 12px; color: var(--text);
+    font: 400 14px var(--mono); outline: none; transition: border-color 0.2s;
+  }
+  @media (max-width: 400px) { .search-input { font-size: 12px; padding: 12px; } }
+  .search-input:focus { border-color: #444; }
+  .search-input::placeholder { color: #444; }
+  .search-btn {
+    padding: 14px 22px; background: #fff; color: #000; border: none;
+    border-radius: 12px; font: 600 13px var(--sans); cursor: pointer;
+    transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
+  }
+  .search-btn:hover { background: #ddd; }
+  .search-btn:disabled { background: var(--surface); color: #444; cursor: not-allowed; }
+
+  .resolved {
+    width: 100%; max-width: 520px; margin-bottom: 24px;
+    font: 400 11px var(--mono); color: var(--text-muted);
+    padding: 0 4px; display: none;
+  }
+  .resolved.show { display: block; }
+
+  /* -- Error -- */
+  .error-box {
+    width: 100%; max-width: 520px; padding: 12px 16px;
+    background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12);
+    border-radius: 12px; color: var(--red);
+    font: 400 13px var(--mono); margin-bottom: 24px;
+    word-break: break-word; display: none;
+  }
+  .error-box.show { display: block; }
+
+  /* -- Loading -- */
+  .loading { text-align: center; padding: 48px 0; display: none; }
+  .loading.show { display: block; }
+  .spinner {
+    display: inline-block; width: 22px; height: 22px;
+    border: 2px solid #333; border-top-color: #999;
+    border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 14px;
+  }
+
+  /* -- Card -- */
+  .card {
+    width: 100%; max-width: 520px;
+    animation: fadeUp 0.3s ease; display: none;
+  }
+  .card.show { display: block; }
+
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--surface);
+    border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--border-light);
+  }
+  @media (min-width: 480px) { .card-header { padding: 12px 20px; } }
+
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .meta { font: 500 11px var(--mono); color: var(--text-muted); }
+
+  .token-list {
+    background: var(--surface2); border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .token-list.last {
+    border-bottom: 1px solid var(--border);
+    border-radius: 0 0 12px 12px;
+  }
+
+  .token-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+  }
+  @media (min-width: 480px) { .token-row { padding: 14px 20px; } }
+  .token-row:last-child { border-bottom: none; }
+  .token-row:hover { background: rgba(255,255,255,0.015); }
+
+  .token-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .token-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font: 700 11px var(--mono); flex-shrink: 0;
+  }
+  @media (min-width: 480px) { .token-icon { width: 34px; height: 34px; font-size: 12px; } }
+  .token-sym { font: 600 13px var(--mono); color: var(--text); }
+  @media (min-width: 480px) { .token-sym { font-size: 14px; } }
+  .token-bal {
+    font: 500 13px var(--mono); color: #f0f0f0;
+    text-align: right; flex-shrink: 0;
+  }
+  @media (min-width: 480px) { .token-bal { font-size: 14px; } }
+
+  .section-hdr {
+    padding: 10px 16px; font: 600 10px var(--mono);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border-light);
+  }
+  @media (min-width: 480px) { .section-hdr { padding: 10px 20px; } }
+  .section-hdr.dep { color: var(--amber); background: rgba(245,158,11,0.04); }
+  .dep-val { color: var(--amber) !important; }
+
+  .empty-state {
+    width: 100%; max-width: 520px; padding: 48px 20px;
+    text-align: center; background: var(--surface); border-radius: 12px;
+    border: 1px solid var(--border); animation: fadeUp 0.3s ease; display: none;
+  }
+  .empty-state.show { display: block; }
+
+  .explorer-link {
+    text-align: center; margin-top: 14px; display: none;
+  }
+  .explorer-link.show { display: block; }
+  .explorer-link a {
+    font: 400 12px var(--mono); color: #555;
+    text-decoration: none; transition: color 0.15s;
+  }
+  .explorer-link a:hover { color: var(--text-dim); }
+
+  .withdraw-cta {
+    width: 100%; max-width: 520px; text-align: center;
+    margin-top: 24px; display: none;
+  }
+  .withdraw-cta.show { display: block; }
+  .withdraw-cta a {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 28px; background: var(--red);
+    border: none; border-radius: 12px;
+    color: #fff; font: 600 13px var(--mono);
+    text-decoration: none; transition: background 0.15s;
+  }
+  .withdraw-cta a:hover { background: #dc2626; }
+
+  .footer {
+    margin-top: auto; padding-top: 48px; text-align: center;
+    font: 400 11px var(--mono); color: var(--text-faint); line-height: 1.8;
+  }
+  .footer a { color: var(--text-faint); text-decoration: none; }
+  .footer a:hover { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">
+    <div class="badge-dot"></div>
+    <span class="badge-text">Shutting down May 4, 2026</span>
+  </div>
+  <h1>zkSync Lite Token Checker</h1>
+  <p class="subtitle">Enter your address or ENS to view balances.</p>
+</div>
+
+<div class="search">
+  <input id="addr" class="search-input" type="text" placeholder="0x... or vitalik.eth" autofocus spellcheck="false" autocomplete="off" autocapitalize="off">
+  <button id="btn" class="search-btn" onclick="go()">Check</button>
+</div>
+<div id="resolved" class="resolved"></div>
+
+<div id="error" class="error-box"></div>
+<div id="loading" class="loading">
+  <div class="spinner"></div>
+  <div class="mono" style="font-size:13px;color:#666" id="load-text">Loading...</div>
+</div>
+<div id="card" class="card"></div>
+<div id="empty" class="empty-state"></div>
+<div id="explink" class="explorer-link"></div>
+
+<div id="withdraw" class="withdraw-cta">
+  <a href="https://lite.zksync.io" target="_blank" rel="noopener">Withdraw on lite.zksync.io &rarr;</a>
+</div>
+
+<div class="footer">
+  <div>Reads from api.zksync.io &middot; Committed state</div>
+  <div style="margin-top:2px"><a href="https://github.com/0xcyp/zksync-lite-checker" target="_blank">Open source</a> &middot; No tracking</div>
+</div>
+
+<script>
+const RPC = 'https://api.zksync.io/jsrpc';
+const ETH_RPC = 'https://cloudflare-eth.com';
+const KNOWN_DEC = {ETH:18,USDC:6,USDT:6,DAI:18,WBTC:8,LINK:18,UNI:18,AAVE:18,SNX:18,CRV:18,BAL:18,COMP:18,YFI:18,SUSHI:18,LRC:18,ZRX:18,MANA:18,ENJ:18,MATIC:18,FTM:18,SAND:18,AXS:18,GALA:18,ENS:18,APE:18,DYDX:18,IMX:18,STORJ:8,BAT:18,GNO:18,FRAX:18,LUSD:18,rETH:18,stETH:18,cbETH:18,WETH:18};
+
+let tokenDecimals = {};
+
+const $ = id => document.getElementById(id);
+
+$('addr').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+
+// -- ENS Resolution --
+function namehash(name) {
+  let node = new Uint8Array(32);
+  if (name === '') return '0x' + buf2hex(node);
+  const labels = name.split('.');
+  for (let i = labels.length - 1; i >= 0; i--) {
+    const labelHash = sha3(labels[i]);
+    const combined = new Uint8Array(64);
+    combined.set(node, 0);
+    combined.set(hexToBytes(labelHash), 32);
+    node = hexToBytes(sha3Raw(combined));
+  }
+  return '0x' + buf2hex(node);
+}
+
+function buf2hex(buf) {
+  return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex) {
+  hex = hex.replace(/^0x/, '');
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+  return bytes;
+}
+
+// Minimal keccak-256 for ENS
+// Using a precomputed approach via eth_call to the universal resolver instead
+async function resolveENS(name) {
+  // Use Cloudflare ETH gateway with eth_call to ENS Universal Resolver
+  // Universal Resolver on mainnet: 0xce01f8eee7E479C928F8919abD53E553a36CeF67
+  // Or simpler: use the ENS offchain lookup API
+  // Simplest reliable method: use 1inch or ensdata.net
+  const apis = [
+    `https://api.ensideas.com/ens/resolve/${encodeURIComponent(name)}`,
+    `https://ensdata.net/${encodeURIComponent(name)}`,
+  ];
+
+  for (const url of apis) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const addr = data.address || data.resolvedAddress || data.addr;
+      if (addr && /^0x[a-fA-F0-9]{40}$/.test(addr)) return addr;
+    } catch (_) {}
+  }
+
+  // Fallback: try Cloudflare ETH JSON-RPC with eth_call to ENS registry
+  // resolve(bytes name) on Universal Resolver 0xc0497E381f536Be9ce14B0dD3817cBcAe57d2F62
+  // This is complex to encode manually, so we skip if APIs failed
+  throw new Error('Could not resolve ENS name "' + name + '". Try pasting the 0x address directly.');
+}
+
+// -- zkSync RPC --
+async function rpc(method, params) {
+  const res = await fetch(RPC, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({jsonrpc:'2.0', id:1, method, params})
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const j = await res.json();
+  if (j.error) throw new Error(j.error.message || 'RPC error');
+  return j.result;
+}
+
+function fmt(raw, dec) {
+  if (!raw || raw === '0') return '0';
+  const s = raw.padStart(dec + 1, '0');
+  const i = s.slice(0, s.length - dec) || '0';
+  const f = s.slice(s.length - dec).replace(/0+$/, '');
+  if (!f) return Number(i).toLocaleString();
+  return Number(i).toLocaleString() + '.' + f.slice(0, 6);
+}
+
+function hue(sym) {
+  let h = 0;
+  for (let i = 0; i < sym.length; i++) h = (h * 31 + sym.charCodeAt(i)) % 360;
+  return h;
+}
+
+function short(a) { return a.slice(0,6) + '\u2026' + a.slice(-4); }
+
+function getDec(sym) {
+  if (tokenDecimals[sym] != null) return tokenDecimals[sym];
+  if (KNOWN_DEC[sym] != null) return KNOWN_DEC[sym];
+  return 18;
+}
+
+function hideAll() {
+  ['error','loading','card','empty','explink','withdraw'].forEach(id => {
+    $(id).classList.remove('show');
+    $(id).style.display = '';
+  });
+  $('resolved').classList.remove('show');
+}
+
+function showEl(id) { $(id).classList.add('show'); }
+
+// -- Main --
+async function go() {
+  let input = $('addr').value.trim();
+  if (!input) return;
+
+  hideAll();
+  $('btn').disabled = true;
+
+  let addr = input;
+  let ensName = null;
+
+  try {
+    // Check if ENS name
+    if (input.includes('.') && !input.startsWith('0x')) {
+      $('loading').style.display = 'block';
+      showEl('loading');
+      $('load-text').textContent = 'Resolving ' + input + '...';
+      ensName = input;
+      addr = await resolveENS(input);
+      $('resolved').textContent = ensName + ' \u2192 ' + short(addr);
+      showEl('resolved');
+    }
+
+    if (!/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
+      throw new Error('Invalid address format');
+    }
+
+    $('loading').style.display = 'block';
+    showEl('loading');
+    $('load-text').textContent = 'Fetching balances...';
+
+    // Fetch tokens + account in parallel
+    const [toks, acc] = await Promise.all([
+      rpc('tokens', []).catch(() => null),
+      rpc('account_info', [addr])
+    ]);
+
+    // Build decimals map
+    if (toks) {
+      Object.keys(toks).forEach(sym => {
+        if (toks[sym] && toks[sym].decimals != null)
+          tokenDecimals[sym] = toks[sym].decimals;
+      });
+    }
+
+    $('loading').classList.remove('show');
+    $('loading').style.display = '';
+
+    // No account
+    if (!acc || (!acc.committed && !acc.verified)) {
+      $('empty').innerHTML = `
+        <div style="font-size:28px;margin-bottom:12px;color:#555">\u2205</div>
+        <div class="mono" style="font-size:14px;color:#666">No account found on zkSync Lite</div>
+        <div class="mono" style="font-size:12px;color:#444;margin-top:6px">${short(addr)}</div>`;
+      showEl('empty');
+      return;
+    }
+
+    const balances = acc.committed?.balances || {};
+    const depositing = acc.depositing?.balances || {};
+    const accountId = acc.id;
+
+    const sorted = Object.entries(balances)
+      .filter(([,b]) => b !== '0')
+      .sort(([a],[b]) => a === 'ETH' ? -1 : b === 'ETH' ? 1 : a.localeCompare(b));
+
+    const depEntries = Object.entries(depositing);
+    const hasDep = depEntries.length > 0;
+
+    let html = '';
+
+    // Header
+    html += `<div class="card-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="status-dot" style="background:${sorted.length > 0 ? 'var(--green)' : 'var(--text-muted)'}"></div>
+        <span class="mono" style="font-size:12px;color:var(--text-dim)">${ensName ? ensName : short(addr)}</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        ${accountId != null ? `<span class="meta">#${accountId}</span>` : ''}
+        <span class="meta">${sorted.length} token${sorted.length !== 1 ? 's' : ''}</span>
+      </div>
+    </div>`;
+
+    // Token list
+    html += `<div class="token-list${!hasDep ? ' last' : ''}">`;
+    if (sorted.length === 0) {
+      html += `<div style="padding:32px 16px;text-align:center" class="mono" style="font-size:13px;color:#444">No token balances</div>`;
+    }
+    sorted.forEach(([sym, bal]) => {
+      const h = hue(sym);
+      const dec = getDec(sym);
+      html += `<div class="token-row">
+        <div class="token-left">
+          <div class="token-icon" style="background:hsl(${h},40%,18%);color:hsl(${h},55%,65%)">${sym.slice(0,2)}</div>
+          <span class="token-sym">${sym}</span>
+        </div>
+        <span class="token-bal">${fmt(bal, dec)}</span>
+      </div>`;
+    });
+    html += '</div>';
+
+    // Depositing
+    if (hasDep) {
+      html += `<div class="token-list last">
+        <div class="section-hdr dep">Pending Deposits</div>`;
+      depEntries.forEach(([sym, info]) => {
+        const dec = getDec(sym);
+        const amount = typeof info === 'object' ? (info.amount || '0') : String(info);
+        html += `<div class="token-row">
+          <div class="token-left">
+            <span class="token-sym">${sym}</span>
+          </div>
+          <span class="token-bal dep-val">${fmt(amount, dec)}</span>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    $('card').innerHTML = html;
+    showEl('card');
+
+    // Explorer link
+    $('explink').innerHTML = `<a href="https://zkscan.io/explorer/accounts/${addr}" target="_blank" rel="noopener" class="mono">View on zkscan.io \u2192</a>`;
+    showEl('explink');
+
+    // Withdraw CTA only if there are balances
+    if (sorted.length > 0) {
+      showEl('withdraw');
+    }
+
+  } catch (e) {
+    $('loading').classList.remove('show');
+    $('loading').style.display = '';
+    $('error').textContent = e.message || 'Request failed';
+    showEl('error');
+  } finally {
+    $('btn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
