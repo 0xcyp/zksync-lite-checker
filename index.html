@@ -365,7 +365,7 @@ async function go() {
 
   try {
     // Check if ENS name
-    if (input.includes('.') && !input.startsWith('0x')) {
+    if (input.includes('.')) {
       $('loading').style.display = 'block';
       showEl('loading');
       $('load-text').textContent = 'Resolving ' + input + '...';
