@@ -244,7 +244,6 @@
 
 <script>
 const RPC = 'https://api.zksync.io/jsrpc';
-const ETH_RPC = 'https://cloudflare-eth.com';
 const KNOWN_DEC = {ETH:18,USDC:6,USDT:6,DAI:18,WBTC:8,LINK:18,UNI:18,AAVE:18,SNX:18,CRV:18,BAL:18,COMP:18,YFI:18,SUSHI:18,LRC:18,ZRX:18,MANA:18,ENJ:18,MATIC:18,FTM:18,SAND:18,AXS:18,GALA:18,ENS:18,APE:18,DYDX:18,IMX:18,STORJ:8,BAT:18,GNO:18,FRAX:18,LUSD:18,rETH:18,stETH:18,cbETH:18,WETH:18};
 
 let tokenDecimals = {};
@@ -252,31 +251,6 @@ let tokenDecimals = {};
 const $ = id => document.getElementById(id);
 
 // -- ENS Resolution --
-function namehash(name) {
-  let node = new Uint8Array(32);
-  if (name === '') return '0x' + buf2hex(node);
-  const labels = name.split('.');
-  for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = sha3(labels[i]);
-    const combined = new Uint8Array(64);
-    combined.set(node, 0);
-    combined.set(hexToBytes(labelHash), 32);
-    node = hexToBytes(sha3Raw(combined));
-  }
-  return '0x' + buf2hex(node);
-}
-
-function buf2hex(buf) {
-  return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(hex) {
-  hex = hex.replace(/^0x/, '');
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-  return bytes;
-}
-
 async function resolveENS(name) {
   const apis = [
     `https://api.ensideas.com/ens/resolve/${encodeURIComponent(name)}`,
@@ -342,6 +316,12 @@ function hideAll() {
 }
 
 function showEl(id) { $(id).classList.add('show'); }
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
 
 // -- Build card HTML for one address --
 function buildCard(input, addr, ensName, acc) {
@@ -481,7 +461,8 @@ async function go() {
         if (result.hasBalances) anyBalances = true;
       } catch (e) {
         // Inline error for this address
-        resultsHtml += `<div class="error-box show" style="display:block">${ensName || short(addr !== input ? addr : input)} &mdash; ${e.message || 'Request failed'}</div>`;
+        const label = ensName || (addr !== input ? short(addr) : esc(input));
+        resultsHtml += `<div class="error-box show" style="display:block">${esc(label)} &mdash; ${esc(e.message || 'Request failed')}</div>`;
       }
     }
 
