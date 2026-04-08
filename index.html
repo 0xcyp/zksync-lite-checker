@@ -58,17 +58,20 @@
   @media (min-width: 480px) { h1 { font-size: 32px; } }
   .subtitle {
     font: 400 14px/1.5 var(--sans); color: var(--text-muted);
-    margin-top: 8px; max-width: 340px; display: inline-block;
+    margin-top: 8px; max-width: 380px; display: inline-block;
   }
 
   /* -- Search -- */
   .search {
     width: 100%; max-width: 520px; display: flex; gap: 8px; margin-bottom: 12px;
+    align-items: flex-start;
   }
   .search-input {
     flex: 1; min-width: 0; padding: 14px 14px; background: var(--surface);
     border: 1px solid #222; border-radius: 12px; color: var(--text);
     font: 400 14px var(--mono); outline: none; transition: border-color 0.2s;
+    resize: vertical; min-height: 48px; line-height: 1.5;
+    field-sizing: content;
   }
   @media (max-width: 400px) { .search-input { font-size: 12px; padding: 12px; } }
   .search-input:focus { border-color: #444; }
@@ -93,7 +96,7 @@
     width: 100%; max-width: 520px; padding: 12px 16px;
     background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12);
     border-radius: 12px; color: var(--red);
-    font: 400 13px var(--mono); margin-bottom: 24px;
+    font: 400 13px var(--mono); margin-bottom: 16px;
     word-break: break-word; display: none;
   }
   .error-box.show { display: block; }
@@ -107,12 +110,14 @@
     border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 14px;
   }
 
+  /* -- Results -- */
+  #results { width: 100%; max-width: 520px; }
+
   /* -- Card -- */
   .card {
     width: 100%; max-width: 520px;
-    animation: fadeUp 0.3s ease; display: none;
+    animation: fadeUp 0.3s ease; margin-bottom: 16px;
   }
-  .card.show { display: block; }
 
   .card-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -167,16 +172,15 @@
   .dep-val { color: var(--amber) !important; }
 
   .empty-state {
-    width: 100%; max-width: 520px; padding: 48px 20px;
+    width: 100%; max-width: 520px; padding: 32px 20px;
     text-align: center; background: var(--surface); border-radius: 12px;
-    border: 1px solid var(--border); animation: fadeUp 0.3s ease; display: none;
+    border: 1px solid var(--border); animation: fadeUp 0.3s ease;
+    margin-bottom: 16px;
   }
-  .empty-state.show { display: block; }
 
   .explorer-link {
-    text-align: center; margin-top: 14px; display: none;
+    text-align: center; margin-top: 6px; margin-bottom: 16px;
   }
-  .explorer-link.show { display: block; }
   .explorer-link a {
     font: 400 12px var(--mono); color: #555;
     text-decoration: none; transition: color 0.15s;
@@ -213,23 +217,20 @@
     <span class="badge-text">Shutting down May 4, 2026</span>
   </div>
   <h1>zkSync Lite Token Checker</h1>
-  <p class="subtitle">Enter your address or ENS to view balances.</p>
+  <p class="subtitle">Enter addresses or ENS names to view balances. One per line, or comma-separated.</p>
 </div>
 
 <div class="search">
-  <input id="addr" class="search-input" type="text" placeholder="0x... or vitalik.eth" autofocus spellcheck="false" autocomplete="off" autocapitalize="off">
+  <textarea id="addr" class="search-input" rows="1" placeholder="0x... or vitalik.eth" autofocus spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
   <button id="btn" class="search-btn" onclick="go()">Check</button>
 </div>
-<div id="resolved" class="resolved"></div>
 
 <div id="error" class="error-box"></div>
 <div id="loading" class="loading">
   <div class="spinner"></div>
   <div class="mono" style="font-size:13px;color:#666" id="load-text">Loading...</div>
 </div>
-<div id="card" class="card"></div>
-<div id="empty" class="empty-state"></div>
-<div id="explink" class="explorer-link"></div>
+<div id="results"></div>
 
 <div id="withdraw" class="withdraw-cta">
   <a href="https://lite.zksync.io" target="_blank" rel="noopener">Withdraw on lite.zksync.io &rarr;</a>
@@ -237,54 +238,20 @@
 
 <div class="footer">
   <div>Reads from api.zksync.io &middot; Committed state</div>
-  <div style="margin-top:6px"><a href="https://github.com/0xcyp/zksync-lite-checker/blob/main/index.html" target="_blank" style="color:#666;border-bottom:1px solid #333;padding-bottom:1px">Open source</a> &middot; No tracking</div>
+  <div style="margin-top:6px"><a href="https://github.com/julienbrs/zksync-lite-checker" target="_blank" style="color:#666;border-bottom:1px solid #333;padding-bottom:1px">Open source</a> &middot; Originally by <a href="https://github.com/0xcyp" target="_blank" style="color:#666;border-bottom:1px solid #333;padding-bottom:1px">0xcyp</a> &middot; No tracking</div>
 
 </div>
 
 <script>
 const RPC = 'https://api.zksync.io/jsrpc';
-const ETH_RPC = 'https://cloudflare-eth.com';
 const KNOWN_DEC = {ETH:18,USDC:6,USDT:6,DAI:18,WBTC:8,LINK:18,UNI:18,AAVE:18,SNX:18,CRV:18,BAL:18,COMP:18,YFI:18,SUSHI:18,LRC:18,ZRX:18,MANA:18,ENJ:18,MATIC:18,FTM:18,SAND:18,AXS:18,GALA:18,ENS:18,APE:18,DYDX:18,IMX:18,STORJ:8,BAT:18,GNO:18,FRAX:18,LUSD:18,rETH:18,stETH:18,cbETH:18,WETH:18};
 
 let tokenDecimals = {};
 
 const $ = id => document.getElementById(id);
 
-$('addr').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-
 // -- ENS Resolution --
-function namehash(name) {
-  let node = new Uint8Array(32);
-  if (name === '') return '0x' + buf2hex(node);
-  const labels = name.split('.');
-  for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = sha3(labels[i]);
-    const combined = new Uint8Array(64);
-    combined.set(node, 0);
-    combined.set(hexToBytes(labelHash), 32);
-    node = hexToBytes(sha3Raw(combined));
-  }
-  return '0x' + buf2hex(node);
-}
-
-function buf2hex(buf) {
-  return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(hex) {
-  hex = hex.replace(/^0x/, '');
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-  return bytes;
-}
-
-// Minimal keccak-256 for ENS
-// Using a precomputed approach via eth_call to the universal resolver instead
 async function resolveENS(name) {
-  // Use Cloudflare ETH gateway with eth_call to ENS Universal Resolver
-  // Universal Resolver on mainnet: 0xce01f8eee7E479C928F8919abD53E553a36CeF67
-  // Or simpler: use the ENS offchain lookup API
-  // Simplest reliable method: use 1inch or ensdata.net
   const apis = [
     `https://api.ensideas.com/ens/resolve/${encodeURIComponent(name)}`,
     `https://ensdata.net/${encodeURIComponent(name)}`,
@@ -300,10 +267,7 @@ async function resolveENS(name) {
     } catch (_) {}
   }
 
-  // Fallback: try Cloudflare ETH JSON-RPC with eth_call to ENS registry
-  // resolve(bytes name) on Universal Resolver 0xc0497E381f536Be9ce14B0dD3817cBcAe57d2F62
-  // This is complex to encode manually, so we skip if APIs failed
-  throw new Error('Could not resolve ENS name "' + name + '". Try pasting the 0x address directly.');
+  throw new Error('Could not resolve ENS name "' + name + '"');
 }
 
 // -- zkSync RPC --
@@ -343,53 +307,123 @@ function getDec(sym) {
 }
 
 function hideAll() {
-  ['error','loading','card','empty','explink','withdraw'].forEach(id => {
-    $(id).classList.remove('show');
-    $(id).style.display = '';
-  });
-  $('resolved').classList.remove('show');
+  $('error').classList.remove('show');
+  $('error').style.display = '';
+  $('loading').classList.remove('show');
+  $('loading').style.display = '';
+  $('results').innerHTML = '';
+  $('withdraw').classList.remove('show');
 }
 
 function showEl(id) { $(id).classList.add('show'); }
 
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// -- Build card HTML for one address --
+function buildCard(input, addr, ensName, acc) {
+  // No account
+  if (!acc || (!acc.committed && !acc.verified)) {
+    return `<div class="empty-state">
+      <div style="font-size:28px;margin-bottom:12px;color:#555">\u2205</div>
+      <div class="mono" style="font-size:14px;color:#666">No account found on zkSync Lite</div>
+      <div class="mono" style="font-size:12px;color:#444;margin-top:6px">${ensName ? ensName + ' \u2192 ' : ''}${short(addr)}</div>
+    </div>`;
+  }
+
+  const balances = acc.committed?.balances || {};
+  const depositing = acc.depositing?.balances || {};
+  const accountId = acc.id;
+
+  const sorted = Object.entries(balances)
+    .filter(([,b]) => b !== '0')
+    .sort(([a],[b]) => a === 'ETH' ? -1 : b === 'ETH' ? 1 : a.localeCompare(b));
+
+  const depEntries = Object.entries(depositing);
+  const hasDep = depEntries.length > 0;
+
+  let html = '<div class="card">';
+
+  // Header
+  html += `<div class="card-header">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="status-dot" style="background:${sorted.length > 0 ? 'var(--green)' : 'var(--text-muted)'}"></div>
+      <span class="mono" style="font-size:12px;color:var(--text-dim)">${ensName ? ensName : short(addr)}</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+      ${accountId != null ? `<span class="meta">#${accountId}</span>` : ''}
+      <span class="meta">${sorted.length} token${sorted.length !== 1 ? 's' : ''}</span>
+    </div>
+  </div>`;
+
+  // Token list
+  html += `<div class="token-list${!hasDep ? ' last' : ''}">`;
+  if (sorted.length === 0) {
+    html += `<div style="padding:32px 16px;text-align:center" class="mono" style="font-size:13px;color:#444">No token balances</div>`;
+  }
+  sorted.forEach(([sym, bal]) => {
+    const h = hue(sym);
+    const dec = getDec(sym);
+    html += `<div class="token-row">
+      <div class="token-left">
+        <div class="token-icon" style="background:hsl(${h},40%,18%);color:hsl(${h},55%,65%)">${sym.slice(0,2)}</div>
+        <span class="token-sym">${sym}</span>
+      </div>
+      <span class="token-bal">${fmt(bal, dec)}</span>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Depositing
+  if (hasDep) {
+    html += `<div class="token-list last">
+      <div class="section-hdr dep">Pending Deposits</div>`;
+    depEntries.forEach(([sym, info]) => {
+      const dec = getDec(sym);
+      const amount = typeof info === 'object' ? (info.amount || '0') : String(info);
+      html += `<div class="token-row">
+        <div class="token-left">
+          <span class="token-sym">${sym}</span>
+        </div>
+        <span class="token-bal dep-val">${fmt(amount, dec)}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  // Explorer link
+  html += `<div class="explorer-link"><a href="https://zkscan.io/explorer/accounts/${addr}" target="_blank" rel="noopener" class="mono">View on zkscan.io \u2192</a></div>`;
+
+  return { html, hasBalances: sorted.length > 0 };
+}
+
 // -- Main --
 async function go() {
-  let input = $('addr').value.trim();
-  if (!input) return;
+  const raw = $('addr').value.trim();
+  if (!raw) return;
+
+  // Parse multiple addresses: split by newlines or commas
+  const inputs = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (inputs.length === 0) return;
 
   hideAll();
   $('btn').disabled = true;
 
-  let addr = input;
-  let ensName = null;
-
   try {
-    // Check if ENS name
-    if (input.includes('.')) {
-      $('loading').style.display = 'block';
-      showEl('loading');
-      $('load-text').textContent = 'Resolving ' + input + '...';
-      ensName = input;
-      addr = await resolveENS(input);
-      $('resolved').textContent = ensName + ' \u2192 ' + short(addr);
-      showEl('resolved');
-    }
-
-    if (!/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
-      throw new Error('Invalid address format');
-    }
-
+    // Show loading
     $('loading').style.display = 'block';
     showEl('loading');
-    $('load-text').textContent = 'Fetching balances...';
+    $('load-text').textContent = inputs.length > 1
+      ? `Checking ${inputs.length} wallets...`
+      : 'Loading...';
 
-    // Fetch tokens + account in parallel
-    const [toks, acc] = await Promise.all([
-      rpc('tokens', []).catch(() => null),
-      rpc('account_info', [addr])
-    ]);
-
-    // Build decimals map
+    // Fetch token decimals once
+    const toks = await rpc('tokens', []).catch(() => null);
     if (toks) {
       Object.keys(toks).forEach(sym => {
         if (toks[sym] && toks[sym].decimals != null)
@@ -397,88 +431,47 @@ async function go() {
       });
     }
 
+    let resultsHtml = '';
+    let anyBalances = false;
+
+    // Process each address
+    for (let idx = 0; idx < inputs.length; idx++) {
+      const input = inputs[idx];
+      $('load-text').textContent = inputs.length > 1
+        ? `Checking wallet ${idx + 1} of ${inputs.length}...`
+        : (input.includes('.') ? 'Resolving ' + input + '...' : 'Fetching balances...');
+
+      let addr = input;
+      let ensName = null;
+
+      try {
+        // ENS resolution
+        if (input.includes('.')) {
+          ensName = input;
+          addr = await resolveENS(input);
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
+          throw new Error('Invalid address format');
+        }
+
+        const acc = await rpc('account_info', [addr]);
+        const result = buildCard(input, addr, ensName, acc);
+        resultsHtml += result.html || result;
+        if (result.hasBalances) anyBalances = true;
+      } catch (e) {
+        // Inline error for this address
+        const label = ensName || (addr !== input ? short(addr) : esc(input));
+        resultsHtml += `<div class="error-box show" style="display:block">${esc(label)} &mdash; ${esc(e.message || 'Request failed')}</div>`;
+      }
+    }
+
+    // Hide loading, show results
     $('loading').classList.remove('show');
     $('loading').style.display = '';
+    $('results').innerHTML = resultsHtml;
 
-    // No account
-    if (!acc || (!acc.committed && !acc.verified)) {
-      $('empty').innerHTML = `
-        <div style="font-size:28px;margin-bottom:12px;color:#555">\u2205</div>
-        <div class="mono" style="font-size:14px;color:#666">No account found on zkSync Lite</div>
-        <div class="mono" style="font-size:12px;color:#444;margin-top:6px">${short(addr)}</div>`;
-      showEl('empty');
-      return;
-    }
-
-    const balances = acc.committed?.balances || {};
-    const depositing = acc.depositing?.balances || {};
-    const accountId = acc.id;
-
-    const sorted = Object.entries(balances)
-      .filter(([,b]) => b !== '0')
-      .sort(([a],[b]) => a === 'ETH' ? -1 : b === 'ETH' ? 1 : a.localeCompare(b));
-
-    const depEntries = Object.entries(depositing);
-    const hasDep = depEntries.length > 0;
-
-    let html = '';
-
-    // Header
-    html += `<div class="card-header">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="status-dot" style="background:${sorted.length > 0 ? 'var(--green)' : 'var(--text-muted)'}"></div>
-        <span class="mono" style="font-size:12px;color:var(--text-dim)">${ensName ? ensName : short(addr)}</span>
-      </div>
-      <div style="display:flex;gap:12px;align-items:center">
-        ${accountId != null ? `<span class="meta">#${accountId}</span>` : ''}
-        <span class="meta">${sorted.length} token${sorted.length !== 1 ? 's' : ''}</span>
-      </div>
-    </div>`;
-
-    // Token list
-    html += `<div class="token-list${!hasDep ? ' last' : ''}">`;
-    if (sorted.length === 0) {
-      html += `<div style="padding:32px 16px;text-align:center" class="mono" style="font-size:13px;color:#444">No token balances</div>`;
-    }
-    sorted.forEach(([sym, bal]) => {
-      const h = hue(sym);
-      const dec = getDec(sym);
-      html += `<div class="token-row">
-        <div class="token-left">
-          <div class="token-icon" style="background:hsl(${h},40%,18%);color:hsl(${h},55%,65%)">${sym.slice(0,2)}</div>
-          <span class="token-sym">${sym}</span>
-        </div>
-        <span class="token-bal">${fmt(bal, dec)}</span>
-      </div>`;
-    });
-    html += '</div>';
-
-    // Depositing
-    if (hasDep) {
-      html += `<div class="token-list last">
-        <div class="section-hdr dep">Pending Deposits</div>`;
-      depEntries.forEach(([sym, info]) => {
-        const dec = getDec(sym);
-        const amount = typeof info === 'object' ? (info.amount || '0') : String(info);
-        html += `<div class="token-row">
-          <div class="token-left">
-            <span class="token-sym">${sym}</span>
-          </div>
-          <span class="token-bal dep-val">${fmt(amount, dec)}</span>
-        </div>`;
-      });
-      html += '</div>';
-    }
-
-    $('card').innerHTML = html;
-    showEl('card');
-
-    // Explorer link
-    $('explink').innerHTML = `<a href="https://zkscan.io/explorer/accounts/${addr}" target="_blank" rel="noopener" class="mono">View on zkscan.io \u2192</a>`;
-    showEl('explink');
-
-    // Withdraw CTA only if there are balances
-    if (sorted.length > 0) {
+    if (anyBalances) {
       showEl('withdraw');
     }
 
